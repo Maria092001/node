@@ -1,0 +1,71 @@
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const port = 3000;
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+// Serve the login form
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Handle login form submission
+app.post('/login', (req, res) => {
+  const { username } = req.body;
+
+  // Store username in local storage
+  res.cookie('username', username);
+
+  // Redirect to the home page
+  res.redirect('/');
+});
+
+// Serve the home page with the send message form
+app.get('/', (req, res) => {
+  const username = req.cookies.username || 'Guest';
+  res.send(`
+    <h1>Welcome, ${username}!</h1>
+    <form action="/send-message" method="post">
+      <label for="message">Message:</label>
+      <input type="text" id="message" name="message" required>
+      <input type="submit" value="Send">
+    </form>
+  `);
+});
+
+// Handle send message form submission
+app.post('/send-message', (req, res) => {
+  const username = req.cookies.username || 'Guest';
+  const message = req.body.message;
+
+  // Store message in a file
+  const data = { [username]: message };
+  fs.appendFileSync('messages.json', JSON.stringify(data) + '\n');
+
+  res.send('Message sent successfully!');
+});
+
+// Read messages from the file and display who sent the message
+app.get('/messages', (req, res) => {
+  const messages = fs.readFileSync('messages.json', 'utf8').split('\n');
+  const formattedMessages = messages.map((line) => {
+    try {
+      const data = JSON.parse(line);
+      const sender = Object.keys(data)[0];
+      const message = data[sender];
+      return `${sender}: ${message}`;
+    } catch (error) {
+      return '';
+    }
+  });
+
+  res.send(`<h2>Messages:</h2><pre>${formattedMessages.join('\n')}</pre>`);
+});
+
+app.listen(port, () => {
+  console.log(`Server listening at http://localhost:${port}`);
+});
