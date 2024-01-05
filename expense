@@ -1,0 +1,105 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const mysql = require('mysql');
+
+const app = express();
+const port = 3000;
+
+app.use(bodyParser.json());
+
+// MySQL Connection
+const db = mysql.createConnection({
+    host: 'your_mysql_host',
+    user: 'your_mysql_user',
+    password: 'your_mysql_password',
+    database: 'your_database'
+});
+
+db.connect((err) => {
+    if (err) {
+        console.error('Error connecting to MySQL:', err);
+    } else {
+        console.log('Connected to MySQL!');
+    }
+});
+
+// Expense Controller
+const expenseController = require('./controllers/expenseController')(db);
+
+// Expense Routes
+app.post('/api/expenses', expenseController.createExpense);
+app.get('/api/expenses', expenseController.getAllExpenses);
+app.put('/api/expenses/:id', expenseController.updateExpense);
+app.delete('/api/expenses/:id', expenseController.deleteExpense);
+
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+});
+
+
+
+
+
+
+module.exports = (db) => {
+    return {
+        createExpense: (req, res) => {
+            const { description, amount } = req.body;
+
+            const sql = 'INSERT INTO expenses (description, amount) VALUES (?, ?)';
+            db.query(sql, [description, amount], (err, result) => {
+                if (err) {
+                    console.error('Error creating expense:', err);
+                    res.status(500).json({ error: 'Internal Server Error' });
+                } else {
+                    res.status(201).json({ message: 'Expense created successfully', expenseId: result.insertId });
+                }
+            });
+        },
+
+        getAllExpenses: (req, res) => {
+            const sql = 'SELECT * FROM expenses ORDER BY created_at DESC';
+            db.query(sql, (err, results) => {
+                if (err) {
+                    console.error('Error fetching expenses:', err);
+                    res.status(500).json({ error: 'Internal Server Error' });
+                } else {
+                    res.status(200).json(results);
+                }
+            });
+        },
+
+        updateExpense: (req, res) => {
+            const expenseId = req.params.id;
+            const { description, amount } = req.body;
+
+            const sql = 'UPDATE expenses SET description = ?, amount = ? WHERE id = ?';
+            db.query(sql, [description, amount, expenseId], (err, result) => {
+                if (err) {
+                    console.error('Error updating expense:', err);
+                    res.status(500).json({ error: 'Internal Server Error' });
+                } else if (result.affectedRows === 0) {
+                    res.status(404).json({ error: 'Expense not found' });
+                } else {
+                    res.status(200).json({ message: 'Expense updated successfully' });
+                }
+            });
+        },
+
+        deleteExpense: (req, res) => {
+            const expenseId = req.params.id;
+
+            const sql = 'DELETE FROM expenses WHERE id = ?';
+            db.query(sql, [expenseId], (err, result) => {
+                if (err) {
+                    console.error('Error deleting expense:', err);
+                    res.status(500).json({ error: 'Internal Server Error' });
+                } else if (result.affectedRows === 0) {
+                    res.status(404).json({ error: 'Expense not found' });
+                } else {
+                    res.status(200).json({ message: 'Expense deleted successfully' });
+                }
+            });
+        }
+    };
+};
